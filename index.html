@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta
+      name="description"
+      content="A simple one-command helper for bypassing macOS MDM enrollment during recovery setup."
+    />
+    <title>自动绕过 MDM</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f3f7f4;
+        --ink: #171817;
+        --muted: #5d6460;
+        --line: rgba(23, 24, 23, 0.14);
+        --accent: #0d6b63;
+        --accent-dark: #084c47;
+        --accent-warm: #d96135;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at 12% 12%, rgba(217, 97, 53, 0.18), transparent 30rem),
+          linear-gradient(135deg, #fbfcfb 0%, var(--bg) 52%, #e8f3f1 100%);
+        color: var(--ink);
+      }
+
+      .language-switch {
+        position: fixed;
+        top: 1.25rem;
+        right: 1.25rem;
+        z-index: 10;
+      }
+
+      .lang-button {
+        min-width: 5.6rem;
+        min-height: 2.45rem;
+        padding: 0 1rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.76);
+        color: var(--accent-dark);
+        cursor: pointer;
+        font-size: 0.92rem;
+        font-weight: 760;
+        box-shadow: 0 10px 24px rgba(20, 25, 22, 0.08);
+        transition:
+          background 160ms ease,
+          border-color 160ms ease,
+          transform 160ms ease;
+      }
+
+      .lang-button:hover {
+        border-color: rgba(13, 107, 99, 0.36);
+        background: #fff;
+        transform: translateY(-1px);
+      }
+
+      .lang-button:focus-visible {
+        outline: 3px solid rgba(13, 107, 99, 0.3);
+        outline-offset: 3px;
+      }
+
+      button,
+      code {
+        font: inherit;
+      }
+
+      .page {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        padding: 5rem clamp(1.25rem, 3vw, 3rem) 3rem;
+      }
+
+      .hero {
+        width: min(720px, 100%);
+        margin: 0 auto;
+        text-align: center;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin: 0 0 1.15rem;
+        color: var(--accent-dark);
+        font-size: 0.82rem;
+        font-weight: 760;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        width: 0.62rem;
+        height: 0.62rem;
+        border-radius: 999px;
+        background: var(--accent-warm);
+        content: "";
+        box-shadow: 0 0 0 0.34rem rgba(217, 97, 53, 0.12);
+      }
+
+      h1 {
+        max-width: 100%;
+        margin: 0;
+        font-size: 5rem;
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .command-box {
+        width: 100%;
+        margin: 2.15rem 0 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.66);
+        box-shadow: 0 16px 42px rgba(25, 21, 17, 0.08);
+        overflow: hidden;
+      }
+
+      .terminal-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.44rem;
+        height: 2.3rem;
+        padding: 0 0.9rem;
+        border-bottom: 1px solid var(--line);
+        background: rgba(246, 248, 246, 0.82);
+      }
+
+      .dot {
+        width: 0.66rem;
+        height: 0.66rem;
+        border-radius: 50%;
+        background: #d9d2c7;
+      }
+
+      .dot:nth-child(1) {
+        background: #d96135;
+      }
+
+      .dot:nth-child(2) {
+        background: #e7b44a;
+      }
+
+      .dot:nth-child(3) {
+        background: #42a978;
+      }
+
+      .command {
+        display: block;
+        margin: 0;
+        padding: 1rem 1.1rem 1.1rem;
+        color: #2b2620;
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.92rem;
+        line-height: 1.65;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+
+      .copy-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      .copy-button {
+        min-height: 3.35rem;
+        padding: 0 1.45rem;
+        border: 0;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.6rem;
+        font-weight: 780;
+        box-shadow: 0 16px 34px rgba(13, 107, 99, 0.28);
+        transition:
+          transform 160ms ease,
+          background 160ms ease,
+          box-shadow 160ms ease;
+      }
+
+      .copy-button:hover {
+        background: var(--accent-dark);
+        transform: translateY(-1px);
+        box-shadow: 0 18px 38px rgba(8, 76, 71, 0.28);
+      }
+
+      .copy-button:focus-visible {
+        outline: 3px solid rgba(13, 107, 99, 0.3);
+        outline-offset: 3px;
+      }
+
+      .copy-icon {
+        width: 1.16rem;
+        height: 1.16rem;
+        flex: 0 0 auto;
+      }
+
+      .copy-status {
+        min-height: 1.5rem;
+        color: var(--accent-dark);
+        font-size: 0.95rem;
+        font-weight: 700;
+      }
+
+      .usage {
+        margin-top: 1.25rem;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.64);
+        box-shadow: 0 16px 42px rgba(25, 21, 17, 0.08);
+        text-align: left;
+        overflow: hidden;
+      }
+
+      .usage summary {
+        min-height: 3.35rem;
+        padding: 0 1.1rem;
+        color: var(--accent-dark);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        font-weight: 800;
+        list-style: none;
+      }
+
+      .usage summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .usage summary::after {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        content: "";
+        transform: rotate(45deg);
+        transition: transform 160ms ease;
+      }
+
+      .usage[open] summary::after {
+        transform: rotate(225deg);
+      }
+
+      .usage-content {
+        border-top: 1px solid var(--line);
+        padding: 1.1rem 1.2rem 1.25rem;
+        color: var(--muted);
+        font-size: 0.94rem;
+        line-height: 1.62;
+      }
+
+      .usage-content h3 {
+        margin: 1.15rem 0 0.55rem;
+        color: var(--ink);
+        font-size: 1.02rem;
+        line-height: 1.35;
+      }
+
+      .usage-content h3:first-child {
+        margin-top: 0;
+      }
+
+      .usage-content p {
+        margin: 0 0 0.75rem;
+      }
+
+      .usage-content ol {
+        margin: 0;
+        padding-left: 1.35rem;
+      }
+
+      .usage-content li {
+        margin: 0.66rem 0;
+      }
+
+      .usage-content ul {
+        margin: 0.45rem 0 0;
+        padding-left: 1.1rem;
+      }
+
+      .usage-content .callout {
+        margin: 0.85rem 0;
+        padding: 0.8rem 0.9rem;
+        border-left: 3px solid var(--accent);
+        background: rgba(13, 107, 99, 0.08);
+        color: var(--accent-dark);
+      }
+
+      .usage-content code {
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.9em;
+      }
+
+      .usage-command {
+        display: block;
+        margin: 0.6rem 0;
+        padding: 0.85rem 0.9rem;
+        border-radius: 8px;
+        background: rgba(23, 24, 23, 0.07);
+        color: #2b2620;
+        line-height: 1.58;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+
+      kbd {
+        display: inline-block;
+        min-width: 1.55rem;
+        padding: 0.05rem 0.34rem;
+        border: 1px solid rgba(23, 24, 23, 0.2);
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.75);
+        color: var(--ink);
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.86em;
+        line-height: 1.55;
+        text-align: center;
+      }
+
+      .tutorial {
+        margin-top: 2.2rem;
+      }
+
+      .tutorial-title {
+        margin: 0 0 0.85rem;
+        color: var(--ink);
+        font-size: 1.18rem;
+        font-weight: 800;
+        line-height: 1.35;
+      }
+
+      .video-frame {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.58);
+        box-shadow: 0 16px 42px rgba(25, 21, 17, 0.08);
+        overflow: hidden;
+      }
+
+      .video-frame iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+      }
+
+      @media (max-width: 860px) {
+        .page {
+          align-items: flex-start;
+        }
+
+        h1 {
+          font-size: 4.7rem;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .language-switch {
+          top: 0.8rem;
+          right: 0.8rem;
+        }
+
+        .page {
+          padding: 5rem 1rem 2rem;
+        }
+
+        h1 {
+          font-size: 3.25rem;
+        }
+
+        .copy-row {
+          align-items: stretch;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .copy-button {
+          width: 100%;
+        }
+
+        .copy-status {
+          text-align: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="language-switch">
+      <button
+        class="lang-button"
+        type="button"
+        id="language-toggle"
+        aria-label="Switch language"
+      >
+        English
+      </button>
+    </div>
+
+    <main class="page">
+      <section class="hero" aria-labelledby="page-title">
+        <div class="content">
+          <p class="eyebrow" data-i18n="eyebrow">一条命令完成</p>
+          <h1 id="page-title" data-i18n="title">自动绕过 MDM</h1>
+
+          <div class="command-box" aria-label="终端命令" data-i18n-aria="commandLabel">
+            <div class="terminal-bar" aria-hidden="true">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </div>
+            <code class="command" id="command"
+              >curl -L https://minibox.us.ci/bypass-mdm-v2.sh -o bypass-mdm.sh &amp;&amp; chmod +x ./bypass-mdm.sh &amp;&amp; ./bypass-mdm.sh</code
+            >
+          </div>
+
+          <div class="copy-row">
+            <button class="copy-button" type="button" id="copy-command">
+              <svg
+                class="copy-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+              </svg>
+              <span data-i18n="copyButton">复制命令</span>
+            </button>
+            <span class="copy-status" id="copy-status" role="status" aria-live="polite"></span>
+          </div>
+
+          <details class="usage">
+            <summary data-i18n="usageSummary">安装与使用</summary>
+            <div class="usage-content" data-localized="zh">
+              <h3>分步说明</h3>
+              <p>在全新的 macOS 安装过程中，按下面步骤处理 MDM 注册流程。</p>
+              <p class="callout">起点：你已经进入 macOS 设置流程里的 MDM 注册界面。</p>
+              <ol>
+                <li><strong>强制关机：</strong>长按电源键关闭 Mac。</li>
+                <li>
+                  <strong>进入恢复模式：</strong>
+                  <ul>
+                    <li><strong>Apple 芯片 Mac：</strong>长按电源键，直到出现 “Loading startup options”。</li>
+                    <li><strong>Intel Mac：</strong>开机时按住 <kbd>CMD</kbd> + <kbd>R</kbd>。</li>
+                  </ul>
+                </li>
+                <li><strong>连接 Wi-Fi：</strong>用于激活 Mac。</li>
+                <li>
+                  <strong>在恢复模式中打开终端：</strong>
+                  <ul>
+                    <li>点击菜单栏里的 <strong>Utilities</strong>。</li>
+                    <li>选择 <strong>Terminal</strong>。</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>运行脚本：</strong>复制上方命令并粘贴到终端中：
+                  <code class="usage-command"
+                    >curl -L https://minibox.us.ci/bypass-mdm-v2.sh -o bypass-mdm.sh &amp;&amp; chmod +x ./bypass-mdm.sh &amp;&amp; ./bypass-mdm.sh</code
+                  >
+                </li>
+                <li>
+                  <strong>磁盘卷检测：</strong>脚本会自动检测你的卷：
+                  <ul>
+                    <li>系统卷，例如 “Macintosh HD”、“MacOS” 或你的自定义名称。</li>
+                    <li>数据卷，例如 “Data”、“Macintosh HD - Data” 或你的自定义名称。</li>
+                  </ul>
+                </li>
+                <li><strong>选择选项 1：</strong>“Bypass MDM from Recovery”。</li>
+                <li>
+                  <strong>创建临时用户：</strong>配置管理员账户，或者直接按 Enter 使用默认值：
+                  <ul>
+                    <li><strong>Fullname：</strong>Apple（默认）</li>
+                    <li><strong>Username：</strong>Apple（默认）</li>
+                    <li><strong>Password：</strong>1234（默认）</li>
+                  </ul>
+                  <p class="callout">提示：脚本会验证你的输入；如果有问题，会提示你重新输入。</p>
+                </li>
+                <li>
+                  <strong>等待完成：</strong>你会看到进度信息：
+                  <ul>
+                    <li>Validating system paths</li>
+                    <li>Creating user account</li>
+                    <li>Blocking MDM domains</li>
+                    <li>Configuring MDM bypass settings</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>重启：</strong>看到 “MDM Bypass Completed Successfully” 后，关闭终端并重启。
+                </li>
+              </ol>
+
+              <h3>安装后的步骤</h3>
+              <ol start="11">
+                <li>
+                  <strong>登录临时账户：</strong>
+                  <ul>
+                    <li>用户名：<code>Apple</code>，或你自定义的用户名。</li>
+                    <li>密码：<code>1234</code>，或你自定义的密码。</li>
+                  </ul>
+                </li>
+                <li><strong>跳过设置：</strong>跳过 Apple ID、Siri、Touch ID、定位服务等提示。</li>
+                <li>
+                  <strong>创建真实账户：</strong>
+                  <ul>
+                    <li>进入 <strong>System Settings &gt; Users and Groups</strong>。</li>
+                    <li>用你自己的信息创建真实的管理员账户。</li>
+                  </ul>
+                </li>
+                <li><strong>切换账户：</strong>退出登录，并登录到你的新账户。</li>
+                <li><strong>正常设置：</strong>现在可以配置 Apple ID、Siri、Touch ID 等。</li>
+                <li>
+                  <strong>清理：</strong>删除临时 Apple 用户：
+                  <ul>
+                    <li>进入 <strong>System Settings &gt; Users and Groups</strong>。</li>
+                    <li>选择 Apple 用户，然后点击减号按钮。</li>
+                  </ul>
+                </li>
+                <li><strong>完成。</strong></li>
+              </ol>
+            </div>
+
+            <div class="usage-content" data-localized="en" hidden>
+              <h3>Step-by-Step Instructions</h3>
+              <p>Follow these steps during a fresh macOS installation.</p>
+              <p class="callout">Starting point: you have reached the MDM enrollment screen during macOS setup.</p>
+              <ol>
+                <li><strong>Force Shutdown:</strong> long press the Power button to shut down your Mac.</li>
+                <li>
+                  <strong>Boot into Recovery Mode:</strong>
+                  <ul>
+                    <li><strong>Apple Silicon Mac:</strong> hold the Power button until “Loading startup options” appears.</li>
+                    <li><strong>Intel-based Mac:</strong> hold <kbd>CMD</kbd> + <kbd>R</kbd> during boot.</li>
+                  </ul>
+                </li>
+                <li><strong>Connect to Wi-Fi</strong> to activate your Mac.</li>
+                <li>
+                  <strong>Open Terminal in Recovery Mode:</strong>
+                  <ul>
+                    <li>Click <strong>Utilities</strong> in the menu bar.</li>
+                    <li>Select <strong>Terminal</strong>.</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>Run the script:</strong> copy the command above and paste it into Terminal:
+                  <code class="usage-command"
+                    >curl -L https://minibox.us.ci/bypass-mdm-v2.sh -o bypass-mdm.sh &amp;&amp; chmod +x ./bypass-mdm.sh &amp;&amp; ./bypass-mdm.sh</code
+                  >
+                </li>
+                <li>
+                  <strong>Volume Detection:</strong> the script will automatically detect your volumes:
+                  <ul>
+                    <li>System Volume, such as “Macintosh HD”, “MacOS”, or your custom name.</li>
+                    <li>Data Volume, such as “Data”, “Macintosh HD - Data”, or your custom name.</li>
+                  </ul>
+                </li>
+                <li><strong>Select Option 1:</strong> “Bypass MDM from Recovery”.</li>
+                <li>
+                  <strong>Create Temporary User:</strong> configure the admin account, or press Enter for defaults:
+                  <ul>
+                    <li><strong>Fullname:</strong> Apple (default)</li>
+                    <li><strong>Username:</strong> Apple (default)</li>
+                    <li><strong>Password:</strong> 1234 (default)</li>
+                  </ul>
+                  <p class="callout">Tip: the script validates your input and will prompt you to retry if there are issues.</p>
+                </li>
+                <li>
+                  <strong>Wait for Completion:</strong> you will see progress messages:
+                  <ul>
+                    <li>Validating system paths</li>
+                    <li>Creating user account</li>
+                    <li>Blocking MDM domains</li>
+                    <li>Configuring MDM bypass settings</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>Reboot:</strong> when you see “MDM Bypass Completed Successfully”, close Terminal and reboot.
+                </li>
+              </ol>
+
+              <h3>Post-Installation Steps</h3>
+              <ol start="11">
+                <li>
+                  <strong>Login</strong> with the temporary account:
+                  <ul>
+                    <li>Username: <code>Apple</code>, or your custom username.</li>
+                    <li>Password: <code>1234</code>, or your custom password.</li>
+                  </ul>
+                </li>
+                <li><strong>Skip Setup:</strong> skip all prompts, including Apple ID, Siri, Touch ID, and Location Services.</li>
+                <li>
+                  <strong>Create Real Account:</strong>
+                  <ul>
+                    <li>Navigate to <strong>System Settings &gt; Users and Groups</strong>.</li>
+                    <li>Create your actual admin account with your preferred credentials.</li>
+                  </ul>
+                </li>
+                <li><strong>Switch Accounts:</strong> log out and sign in to your new account.</li>
+                <li><strong>Setup Properly:</strong> now configure Apple ID, Siri, Touch ID, and other settings.</li>
+                <li>
+                  <strong>Clean Up:</strong> delete the temporary Apple profile:
+                  <ul>
+                    <li>Go to <strong>System Settings &gt; Users and Groups</strong>.</li>
+                    <li>Select the Apple profile and click the minus button.</li>
+                  </ul>
+                </li>
+                <li><strong>Done.</strong></li>
+              </ol>
+            </div>
+          </details>
+
+          <div class="tutorial">
+            <h2 class="tutorial-title" data-i18n="videoHeading">视频教程</h2>
+            <div class="video-frame">
+              <iframe
+                src="https://player.bilibili.com/player.html?isOutside=true&bvid=BV1YUo7YpEM6&p=1&autoplay=0"
+                title="Bilibili tutorial"
+                loading="lazy"
+                allow="fullscreen; picture-in-picture"
+                allowfullscreen
+                referrerpolicy="strict-origin-when-cross-origin"
+                data-i18n-title="tutorialTitle"
+              ></iframe>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const command =
+        "curl -L https://minibox.us.ci/bypass-mdm-v2.sh -o bypass-mdm.sh && chmod +x ./bypass-mdm.sh && ./bypass-mdm.sh";
+      const translations = {
+        zh: {
+          lang: "zh-CN",
+          documentTitle: "自动绕过 MDM",
+          nextLanguage: "English",
+          toggleLabel: "Switch to English",
+          eyebrow: "一条命令完成",
+          title: "自动绕过 MDM",
+          commandLabel: "终端命令",
+          copyButton: "复制命令",
+          copiedButton: "已复制",
+          copiedStatus: "已复制到剪贴板。",
+          usageSummary: "安装与使用",
+          videoSrc:
+            "https://player.bilibili.com/player.html?isOutside=true&bvid=BV1YUo7YpEM6&p=1&autoplay=0",
+          videoHeading: "视频教程",
+          tutorialTitle: "B 站教程视频",
+        },
+        en: {
+          lang: "en",
+          documentTitle: "Auto Bypass MDM",
+          nextLanguage: "中文",
+          toggleLabel: "切换到中文",
+          eyebrow: "One command setup",
+          title: "Auto Bypass MDM",
+          commandLabel: "Terminal command",
+          copyButton: "Copy Command",
+          copiedButton: "Copied",
+          copiedStatus: "Copied to clipboard.",
+          usageSummary: "Installation & Usage",
+          videoSrc: "https://www.youtube.com/embed/_k4J1DkEov4?autoplay=0&rel=0",
+          videoHeading: "Video Tutorial",
+          tutorialTitle: "YouTube tutorial video",
+        },
+      };
+
+      const copyButton = document.querySelector("#copy-command");
+      const copyButtonText = copyButton.querySelector("[data-i18n]");
+      const copyStatus = document.querySelector("#copy-status");
+      const languageToggle = document.querySelector("#language-toggle");
+      const tutorialFrame = document.querySelector(".video-frame iframe");
+      const localizedBlocks = document.querySelectorAll("[data-localized]");
+      let currentLanguage = "zh";
+      let copied = false;
+
+      function applyLanguage(language) {
+        const text = translations[language];
+
+        document.documentElement.lang = text.lang;
+        document.title = text.documentTitle;
+
+        document.querySelectorAll("[data-i18n]").forEach((element) => {
+          const key = element.dataset.i18n;
+          element.textContent = text[key];
+        });
+
+        document.querySelectorAll("[data-i18n-aria]").forEach((element) => {
+          const key = element.dataset.i18nAria;
+          element.setAttribute("aria-label", text[key]);
+        });
+
+        document.querySelectorAll("[data-i18n-title]").forEach((element) => {
+          const key = element.dataset.i18nTitle;
+          element.setAttribute("title", text[key]);
+        });
+
+        languageToggle.textContent = text.nextLanguage;
+        languageToggle.setAttribute("aria-label", text.toggleLabel);
+        tutorialFrame.src = text.videoSrc;
+        localizedBlocks.forEach((element) => {
+          element.hidden = element.dataset.localized !== language;
+        });
+
+        if (copied) {
+          copyButtonText.textContent = text.copiedButton;
+          copyStatus.textContent = text.copiedStatus;
+        }
+      }
+
+      async function copyCommand() {
+        const text = translations[currentLanguage];
+
+        try {
+          await navigator.clipboard.writeText(command);
+        } catch {
+          const textArea = document.createElement("textarea");
+          textArea.value = command;
+          textArea.setAttribute("readonly", "");
+          textArea.style.position = "fixed";
+          textArea.style.opacity = "0";
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand("copy");
+          textArea.remove();
+        }
+
+        copied = true;
+        copyStatus.textContent = text.copiedStatus;
+        copyButtonText.textContent = text.copiedButton;
+
+        window.setTimeout(() => {
+          copied = false;
+          copyButtonText.textContent = translations[currentLanguage].copyButton;
+          copyStatus.textContent = "";
+        }, 2200);
+      }
+
+      copyButton.addEventListener("click", copyCommand);
+      languageToggle.addEventListener("click", () => {
+        currentLanguage = currentLanguage === "zh" ? "en" : "zh";
+        applyLanguage(currentLanguage);
+      });
+
+      applyLanguage(currentLanguage);
+    </script>
+  </body>
+</html>
